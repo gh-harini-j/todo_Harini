@@ -7,8 +7,8 @@ A full-stack Todo List application where users can register, log in, create, ass
 
 1. **Clone the repository:**
    ```sh
-   git clone https://github.com/yourusername/todo_FirstName.git
-   cd todo_FirstName
+   git clone https://github.com/gh-harini-j/todo_Harini.git
+   cd todo_Harini
    ```
 
 2. **Backend Setup:**
@@ -78,7 +78,7 @@ GitHub Copilot was used to auto-generate boilerplate code, suggest function impl
 ## Project Structure
 
 ```
-todo_FirstName/
+todo_Harini/
 ├── frontend/
 │   └── ... (React app)
 ├── todoapp/
