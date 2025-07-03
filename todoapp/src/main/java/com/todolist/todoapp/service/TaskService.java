@@ -3,6 +3,7 @@ package com.todolist.todoapp.service;
 import com.todolist.todoapp.dto.TaskDTO;
 import com.todolist.todoapp.model.Task;
 import com.todolist.todoapp.model.User;
+import com.todolist.todoapp.model.Priority;
 import com.todolist.todoapp.repository.TaskRepository;
 import com.todolist.todoapp.repository.UserRepository;
 import org.slf4j.Logger;
@@ -36,11 +37,16 @@ public class TaskService {
         User owner = userRepository.findByUsernameIgnoreCase(taskDTO.getOwner()).orElseThrow(() -> new RuntimeException("Owner not found"));
         User assignee = userRepository.findByUsernameIgnoreCase(taskDTO.getAssignee()).orElseThrow(() -> new RuntimeException("Assignee not found"));
 
+        // Prevent assigning tasks to admin
+        if ("ADMIN".equalsIgnoreCase(assignee.getRole())) {
+            throw new RuntimeException("Cannot assign tasks to admin user");
+        }
+
         Task task = new Task();
         task.setTitle(taskDTO.getTitle());
         task.setDescription(taskDTO.getDescription());
         task.setDueDate(taskDTO.getDueDate());
-        task.setPriority(taskDTO.getPriority());
+        task.setPriority(taskDTO.getPriority() != null ? taskDTO.getPriority() : Priority.LOW);
         task.setOwner(owner);
         task.setAssignee(assignee);
         task.setCompleted(false);
@@ -71,6 +77,10 @@ public class TaskService {
         if (updatedTask.getAssignee() != null) {
             User assignee = userRepository.findByUsernameIgnoreCase(updatedTask.getAssignee())
                     .orElseThrow(() -> new RuntimeException("Assignee not found"));
+            // Prevent assigning tasks to admin
+            if ("ADMIN".equalsIgnoreCase(assignee.getRole())) {
+                throw new RuntimeException("Cannot assign tasks to admin user");
+            }
             task.setAssignee(assignee);
         }
 
@@ -100,12 +110,18 @@ public class TaskService {
 
     public List<Task> getTasksAssignedToMe(String username) {
         User user = userRepository.findByUsernameIgnoreCase(username).orElseThrow();
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            return taskRepository.findAll();
+        }
         return taskRepository.findByAssignee(user);
     }
 
     public List<Task> getTasksAssignedByMe(String username) {
         User user = userRepository.findByUsernameIgnoreCase(username).orElseThrow();
-        return taskRepository.findByOwnerAndAssigneeNot(user, user);
+        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+            return taskRepository.findAll();
+        }
+        return taskRepository.findByOwner(user);
     }
 
     public Task getTaskById(Long id) {

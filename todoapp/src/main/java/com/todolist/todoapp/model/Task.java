@@ -26,7 +26,8 @@ public class Task {
 
     private boolean completed;
 
-    private int priority;
+    @Enumerated(EnumType.STRING)
+    private Priority priority; // enum
 
     // Getters and Setters
     public Long getId() {
@@ -69,11 +70,11 @@ public class Task {
         this.completed = completed;
     }
 
-    public int getPriority() {
+    public Priority getPriority() {
         return priority;
     }
 
-    public void setPriority(int priority) {
+    public void setPriority(Priority priority) {
         this.priority = priority;
     }
 

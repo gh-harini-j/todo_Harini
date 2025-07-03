@@ -1,42 +1,60 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import {
-  Button, Snackbar, Alert, LinearProgress, Typography, IconButton, Paper, Stack, ToggleButton, ToggleButtonGroup, Box, Tooltip
+  Button, Snackbar, Alert, Typography, IconButton, Paper, Stack, Box, Tooltip, MenuItem, Select, LinearProgress
 } from '@mui/material';
-import StarIcon from '@mui/icons-material/Star';
-import StarBorderIcon from '@mui/icons-material/StarBorder';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
+
+const PRIORITY_COLORS = {
+  LOW: '#43a047',
+  MEDIUM: '#fb8c00',
+  HIGH: '#e53935'
+};
 
 export default function TaskList() {
-  const [tasks, setTasks] = useState([]);
+  const [assignedToMe, setAssignedToMe] = useState([]);
+  const [assignedByMe, setAssignedByMe] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [isAdmin, setIsAdmin] = useState(null);
   const navigate = useNavigate();
-
-  const fetchTasks = () => {
-    api.get('/tasks')
-      .then(response => setTasks(response.data))
-      .catch(err => {
-        if (err.response && err.response.status === 403) {
-          setError('Access forbidden: Please make sure you are logged in and have permission to view tasks.');
-        } else {
-          setError('Failed to load tasks.');
-        }
-        console.error(err);
-      });
-  };
+  const { user } = useAuth();
 
   useEffect(() => {
-    fetchTasks();
-    // eslint-disable-next-line
-  }, []);
+    api.get('/auth/users')
+      .then(res => {
+        const currentUser = res.data.find(u => u.username === user);
+        // Debug: log what you get
+        console.log('Current user:', currentUser);
+        if (currentUser && String(currentUser.role).toUpperCase() === 'ADMIN') {
+          setIsAdmin(true);
+          fetchAllTasks();
+        } else {
+          setIsAdmin(false);
+          fetchAssigned();
+        }
+      })
+      .catch(() => setIsAdmin(false));
+  }, [user]);
+
+  const fetchAllTasks = () => {
+    api.get('/tasks')
+      .then(res => setAllTasks(res.data))
+      .catch(() => setAllTasks([]));
+  };
+
+  const fetchAssigned = () => {
+    api.get('/tasks/assigned-to-me').then(res => setAssignedToMe(res.data)).catch(() => setAssignedToMe([]));
+    api.get('/tasks/assigned-by-me').then(res => setAssignedByMe(res.data)).catch(() => setAssignedByMe([]));
+  };
 
   const deleteTask = async (id) => {
     await api.delete(`/tasks/${id}`);
-    fetchTasks();
+    isAdmin ? fetchAllTasks() : fetchAssigned();
     setSnackbar({ open: true, message: 'Task deleted successfully!', severity: 'success' });
   };
 
@@ -44,10 +62,10 @@ export default function TaskList() {
     await api.put(`/tasks/${task.id}`, {
       ...task,
       completed: !task.completed,
-      owner: task.owner,         // username string
-      assignee: task.assignee    // username string
+      owner: task.owner,
+      assignee: task.assignee
     });
-    fetchTasks();
+    isAdmin ? fetchAllTasks() : fetchAssigned();
     setSnackbar({
       open: true,
       message: !task.completed ? 'Task marked as complete!' : 'Task marked as incomplete!',
@@ -55,60 +73,27 @@ export default function TaskList() {
     });
   };
 
-  const togglePriority = async (task) => {
+  const handlePriorityChange = async (task, newPriority) => {
     await api.put(`/tasks/${task.id}`, {
       ...task,
-      priority: task.priority === 1 ? 0 : 1,
-      owner: task.owner,         // username string
-      assignee: task.assignee    // username string
+      priority: newPriority,
+      owner: task.owner,
+      assignee: task.assignee
     });
-    fetchTasks();
+    isAdmin ? fetchAllTasks() : fetchAssigned();
     setSnackbar({
       open: true,
-      message: task.priority === 1 ? 'Task unstarred.' : 'Task starred!',
+      message: `Priority changed to ${newPriority}`,
       severity: 'info'
     });
   };
 
-  // Filtering logic
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'starred') return task.priority === 1;
-    if (filter === 'completed') return task.completed;
-    return true;
-  });
-
-  // Progress bar calculation
-  const completedCount = tasks.filter(t => t.completed).length;
-  const progress = tasks.length ? (completedCount / tasks.length) * 100 : 0;
-
-  // Helper for due date formatting and overdue check
   function formatDueDate(dueDate) {
     if (!dueDate) return '';
     if (Array.isArray(dueDate) && dueDate.length >= 3) {
-      const jsDate = new Date(
-        dueDate[0],
-        dueDate[1] - 1,
-        dueDate[2],
-        dueDate[3] || 0,
-        dueDate[4] || 0,
-        dueDate[5] || 0
-      );
+      const [year, month, day, hour = 0, minute = 0, second = 0] = dueDate;
+      const jsDate = new Date(year, month - 1, day, hour, minute, second);
       return jsDate.toLocaleString();
-    }
-    if (typeof dueDate === 'object' && dueDate.year && dueDate.month && dueDate.day) {
-      const jsDate = new Date(
-        dueDate.year,
-        dueDate.month - 1,
-        dueDate.day,
-        dueDate.hour || 0,
-        dueDate.minute || 0,
-        dueDate.second || 0
-      );
-      return jsDate.toLocaleString();
-    }
-    if (typeof dueDate === 'number') {
-      const ms = dueDate < 1e12 ? dueDate * 1000 : dueDate;
-      return new Date(ms).toLocaleString();
     }
     const parsed = Date.parse(dueDate);
     if (!isNaN(parsed)) {
@@ -116,20 +101,13 @@ export default function TaskList() {
     }
     return dueDate;
   }
+
   function isOverdue(task) {
     if (!task.dueDate || task.completed) return false;
     let due;
-    if (typeof task.dueDate === 'object' && task.dueDate.year) {
-      due = new Date(
-        task.dueDate.year,
-        task.dueDate.month - 1,
-        task.dueDate.day,
-        task.dueDate.hour || 0,
-        task.dueDate.minute || 0,
-        task.dueDate.second || 0
-      );
-    } else if (typeof task.dueDate === 'number') {
-      due = new Date(task.dueDate < 1e12 ? task.dueDate * 1000 : task.dueDate);
+    if (Array.isArray(task.dueDate) && task.dueDate.length >= 3) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = task.dueDate;
+      due = new Date(year, month - 1, day, hour, minute, second);
     } else {
       due = new Date(task.dueDate);
     }
@@ -137,6 +115,126 @@ export default function TaskList() {
   }
 
   if (error) return <Alert severity="error">{error}</Alert>;
+  if (isAdmin === null) return null; // Wait for role check
+
+  // For progress bar and summary
+  const tasksForProgress = isAdmin
+    ? allTasks
+    : [...new Map([...assignedToMe, ...assignedByMe].map(t => [t.id, t])).values()];
+  const completedCount = tasksForProgress.filter(t => t.completed).length;
+  const progress = tasksForProgress.length ? (completedCount / tasksForProgress.length) * 100 : 0;
+
+  const renderTasks = tasks => (
+    <Stack spacing={2}>
+      {tasks.length === 0 && <Typography color="text.secondary" align="center">No tasks to display.</Typography>}
+      {tasks.map(task => (
+        <Paper
+          key={task.id}
+          sx={{
+            p: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: task.completed
+              ? 'linear-gradient(90deg, #e0f7fa 60%, #b2ebf2 100%)'
+              : 'white',
+            opacity: task.completed ? 0.7 : 1,
+            borderLeft: `6px solid ${PRIORITY_COLORS[task.priority] || '#bdbdbd'}`,
+            borderRadius: 3,
+            boxShadow: 3,
+            transition: 'box-shadow 0.2s, transform 0.2s',
+            '&:hover': {
+              boxShadow: 8,
+              transform: 'scale(1.01)'
+            }
+          }}
+          elevation={2}
+        >
+          <div style={{ flex: 1 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                textDecoration: task.completed ? 'line-through' : 'none',
+                color: task.completed ? '#616161' : '#212121',
+                fontWeight: 600
+              }}
+            >
+              {task.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+              {task.description}
+            </Typography>
+            {task.dueDate && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: isOverdue(task) ? '#d32f2f' : '#1976d2',
+                  fontWeight: isOverdue(task) ? 700 : 500
+                }}
+              >
+                Due: {formatDueDate(task.dueDate)}
+                {isOverdue(task) && !task.completed && ' (Overdue)'}
+              </Typography>
+            )}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Owner: {task.owner}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Assigned To: {task.assignee}
+            </Typography>
+          </div>
+          <div>
+            <Tooltip title="Change Priority" placement="top">
+              <Select
+                value={task.priority}
+                onChange={e => handlePriorityChange(task, e.target.value)}
+                size="small"
+                sx={{
+                  minWidth: 100,
+                  mr: 1,
+                  background: PRIORITY_COLORS[task.priority] + '22',
+                  borderRadius: 2,
+                  fontWeight: 600
+                }}
+              >
+                <MenuItem value="LOW" sx={{ color: PRIORITY_COLORS.LOW }}>Low</MenuItem>
+                <MenuItem value="MEDIUM" sx={{ color: PRIORITY_COLORS.MEDIUM }}>Medium</MenuItem>
+                <MenuItem value="HIGH" sx={{ color: PRIORITY_COLORS.HIGH }}>High</MenuItem>
+              </Select>
+            </Tooltip>
+            <Tooltip title={task.completed ? "Mark as incomplete" : "Mark as complete"}>
+              <IconButton onClick={() => toggleComplete(task)} color={task.completed ? 'success' : 'default'}>
+                {task.completed
+                  ? <CheckCircleIcon sx={{ color: '#43a047' }} />
+                  : <RadioButtonUncheckedIcon />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete">
+              <Button
+                onClick={() => deleteTask(task.id)}
+                color="error"
+                variant="outlined"
+                size="small"
+                sx={{
+                  ml: 1,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  borderColor: '#e57373',
+                  color: '#d32f2f',
+                  '&:hover': {
+                    background: '#ffebee',
+                    borderColor: '#d32f2f'
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </Tooltip>
+          </div>
+        </Paper>
+      ))}
+    </Stack>
+  );
 
   return (
     <Paper
@@ -151,7 +249,9 @@ export default function TaskList() {
       }}
     >
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>Your Tasks</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
+          {isAdmin ? 'All Tasks' : 'Your Tasks'}
+        </Typography>
         <Button
           variant="contained"
           color="primary"
@@ -180,127 +280,20 @@ export default function TaskList() {
         }}
       />
       <Typography variant="body2" mb={2} sx={{ color: '#1976d2', fontWeight: 500 }}>
-        {completedCount} of {tasks.length} tasks completed
+        {completedCount} of {tasksForProgress.length} tasks completed
       </Typography>
-      <Box mb={2}>
-        <ToggleButtonGroup
-          value={filter}
-          exclusive
-          onChange={(_, val) => val && setFilter(val)}
-          aria-label="task filter"
-          size="small"
-          sx={{
-            background: '#e3eafc',
-            borderRadius: 2,
-            p: 0.5
-          }}
-        >
-          <ToggleButton value="all" aria-label="all tasks" sx={{ fontWeight: 600 }}>All</ToggleButton>
-          <ToggleButton value="starred" aria-label="starred tasks" sx={{ fontWeight: 600 }}>Starred</ToggleButton>
-          <ToggleButton value="completed" aria-label="completed tasks" sx={{ fontWeight: 600 }}>Completed</ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
-      <Stack spacing={2}>
-        {filteredTasks.length === 0 && (
-          <Typography color="text.secondary" align="center">No tasks to display.</Typography>
+      <Box sx={{ mt: 2 }}>
+        {isAdmin === true ? (
+          renderTasks(allTasks)
+        ) : (
+          <>
+            <Typography variant="h6" sx={{ mb: 1 }}>Assigned To Me</Typography>
+            {renderTasks(assignedToMe)}
+            <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Assigned By Me</Typography>
+            {renderTasks(assignedByMe)}
+          </>
         )}
-        {filteredTasks.map(task => (
-          <Paper
-            key={task.id}
-            sx={{
-              p: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              background: task.completed
-                ? 'linear-gradient(90deg, #e0f7fa 60%, #b2ebf2 100%)'
-                : (task.priority === 1
-                  ? 'linear-gradient(90deg, #fffde7 60%, #fff9c4 100%)'
-                  : 'white'),
-              opacity: task.completed ? 0.7 : 1,
-              borderLeft: task.priority === 1 ? '6px solid #fbc02d' : '6px solid transparent',
-              borderRadius: 3,
-              boxShadow: 3,
-              transition: 'box-shadow 0.2s, transform 0.2s',
-              '&:hover': {
-                boxShadow: 8,
-                transform: 'scale(1.01)'
-              }
-            }}
-            elevation={task.priority === 1 ? 4 : 1}
-          >
-            <div style={{ flex: 1 }}>
-              <Typography
-                variant="h6"
-                sx={{
-                  textDecoration: task.completed ? 'line-through' : 'none',
-                  color: task.completed ? '#616161' : '#212121',
-                  fontWeight: 600
-                }}
-              >
-                {task.title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                {task.description}
-              </Typography>
-              {task.dueDate && (
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: isOverdue(task) ? '#d32f2f' : '#1976d2',
-                    fontWeight: isOverdue(task) ? 700 : 500
-                  }}
-                >
-                  Due: {formatDueDate(task.dueDate)}
-                  {isOverdue(task) && !task.completed && ' (Overdue)'}
-                </Typography>
-              )}
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Owner: {task.owner}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                Assigned To: {task.assignee}
-              </Typography>
-            </div>
-            <div>
-              <Tooltip title={task.priority === 1 ? "Unstar" : "Star"}>
-                <IconButton onClick={() => togglePriority(task)} color={task.priority === 1 ? 'warning' : 'default'}>
-                  {task.priority === 1 ? <StarIcon sx={{ color: '#fbc02d' }} /> : <StarBorderIcon />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={task.completed ? "Mark as incomplete" : "Mark as complete"}>
-                <IconButton onClick={() => toggleComplete(task)} color={task.completed ? 'success' : 'default'}>
-                  {task.completed
-                    ? <CheckCircleIcon sx={{ color: '#43a047' }} />
-                    : <RadioButtonUncheckedIcon />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Delete">
-                <Button
-                  onClick={() => deleteTask(task.id)}
-                  color="error"
-                  variant="outlined"
-                  size="small"
-                  sx={{
-                    ml: 1,
-                    borderRadius: 2,
-                    fontWeight: 600,
-                    borderColor: '#e57373',
-                    color: '#d32f2f',
-                    '&:hover': {
-                      background: '#ffebee',
-                      borderColor: '#d32f2f'
-                    }
-                  }}
-                >
-                  Delete
-                </Button>
-              </Tooltip>
-            </div>
-          </Paper>
-        ))}
-      </Stack>
-
+      </Box>
       <Snackbar
         open={snackbar.open}
         autoHideDuration={3000}

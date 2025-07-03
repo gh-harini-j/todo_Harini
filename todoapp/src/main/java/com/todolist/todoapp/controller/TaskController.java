@@ -2,6 +2,7 @@ package com.todolist.todoapp.controller;
 
 import com.todolist.todoapp.dto.TaskDTO;
 import com.todolist.todoapp.model.Task;
+import com.todolist.todoapp.model.Priority;
 import com.todolist.todoapp.service.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -64,5 +65,21 @@ public class TaskController {
         dto.setOwner(task.getOwner() != null ? task.getOwner().getUsername() : null);
         dto.setAssignee(task.getAssignee() != null ? task.getAssignee().getUsername() : null);
         return dto;
+    }
+
+    @GetMapping("/assigned-to-me")
+    public List<TaskDTO> getTasksAssignedToMe(@AuthenticationPrincipal UserDetails userDetails) {
+        return taskService.getTasksAssignedToMe(userDetails.getUsername())
+                .stream()
+                .map(this::toDTO)
+                .toList();
+    }
+
+    @GetMapping("/assigned-by-me")
+    public List<TaskDTO> getTasksAssignedByMe(@AuthenticationPrincipal UserDetails userDetails) {
+        return taskService.getTasksAssignedByMe(userDetails.getUsername())
+                .stream()
+                .map(this::toDTO)
+                .toList();
     }
 }

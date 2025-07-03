@@ -5,7 +5,7 @@ import { TextField, Button, Paper, Typography, Stack, Alert } from '@mui/materia
 import { useAuth } from '../AuthContext';
 
 export default function TaskForm() {
-  const [task, setTask] = useState({ title: '', description: '', dueDate: '', assignee: '' });
+  const [task, setTask] = useState({ title: '', description: '', dueDate: '', assignee: '', priority: 'LOW' });
   const [users, setUsers] = useState([]);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -37,7 +37,8 @@ export default function TaskForm() {
       await api.post('/tasks', {
         ...task,
         owner: user, // username string
-        assignee: task.assignee // username string
+        assignee: task.assignee, // username string
+        priority: task.priority // string: "LOW", "MEDIUM", "HIGH", "STARRED"
       });
       navigate('/');
     } catch (err) {
@@ -75,10 +76,24 @@ export default function TaskForm() {
           />
           <TextField
             select
+            label="Priority"
+            name="priority"
+            value={task.priority}
+            onChange={handleChange}
+            SelectProps={{ native: true }}
+            required
+          >
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+            <option value="STARRED">Starred</option>
+          </TextField>
+          <TextField
+            select
             label="Assign To"
             name="assignee"
             value={task.assignee}
-            onChange={handleAssigneeChange}
+            onChange={e => setTask(t => ({ ...t, assignee: e.target.value }))}
             SelectProps={{ native: true }}
             required
           >

@@ -16,13 +16,9 @@ public class UserService {
     private PasswordEncoder passwordEncoder;
 
     public User registerUser(String username, String password) {
-        String cleanUsername = username.trim(); // Remove .toLowerCase()
-        if (userRepository.findByUsernameIgnoreCase(cleanUsername).isPresent()) {
-            throw new RuntimeException("Username already exists");
-        }
         User user = new User();
-        user.setUsername(cleanUsername);
-        user.setPassword(passwordEncoder.encode(password));
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(password)); // Always encode!
         user.setRole("USER");
         return userRepository.save(user);
     }

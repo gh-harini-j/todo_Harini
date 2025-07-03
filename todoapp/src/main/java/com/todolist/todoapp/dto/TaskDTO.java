@@ -1,6 +1,7 @@
 package com.todolist.todoapp.dto;
 
 import java.time.LocalDateTime;
+import com.todolist.todoapp.model.Priority;
 
 public class TaskDTO {
     private Long id;
@@ -8,7 +9,7 @@ public class TaskDTO {
     private String description;
     private LocalDateTime dueDate;
     private boolean completed;
-    private int priority;
+    private Priority priority;
     private String owner;    // username string
     private String assignee; // username string
 
@@ -29,8 +30,8 @@ public class TaskDTO {
     public boolean isCompleted() { return completed; }
     public void setCompleted(boolean completed) { this.completed = completed; }
 
-    public int getPriority() { return priority; }
-    public void setPriority(int priority) { this.priority = priority; }
+    public Priority getPriority() { return priority; }
+    public void setPriority(Priority priority) { this.priority = priority; }
 
     public String getOwner() { return owner; }
     public void setOwner(String owner) { this.owner = owner; }

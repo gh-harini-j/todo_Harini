@@ -10,4 +10,5 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByOwnerOrAssignee(User owner, User assignee);
     List<Task> findByAssignee(User assignee);
     List<Task> findByOwnerAndAssigneeNot(User owner, User assignee);
+    List<Task> findByOwner(User owner);
 }

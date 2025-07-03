@@ -11,6 +11,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +59,14 @@ public class AuthController {
     }
 
     @GetMapping("/users")
-    public List<UserDTO> getAllUsers() {
-        return userService.getAllUsers().stream().map(UserDTO::new).toList();
+    public List<Map<String, String>> getAllUsers() {
+        return userService.getAllUsers().stream()
+            .map(user -> {
+                Map<String, String> map = new HashMap<>();
+                map.put("username", user.getUsername());
+                map.put("role", user.getRole());
+                return map;
+            })
+            .toList();
     }
 }
